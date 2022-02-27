@@ -1,0 +1,132 @@
+#!/usr/bin/python3
+#Dice
+#Copyright (C) 2022  David Hamner
+
+#This program is free software: you can redistribute it and/or modify
+#it under the terms of the GNU General Public License as published by
+#the Free Software Foundation, either version 3 of the License, or
+#(at your option) any later version.
+
+#This program is distributed in the hope that it will be useful,
+#but WITHOUT ANY WARRANTY; without even the implied warranty of
+#MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#GNU General Public License for more details.
+
+#You should have received a copy of the GNU General Public License
+#along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+#apt install python3-watchdog
+import os
+import sys
+import time
+import logging
+from watchdog.observers import Observer
+from watchdog.events import LoggingEventHandler
+import glob
+import shutil
+
+
+script_path = os.path.dirname(os.path.realpath(__file__))
+upload_path = f"{script_path}/printers"
+settings_file = f"{script_path}/printer_settings.txt"
+
+
+
+def get_printers():
+    printers = []
+    with open(settings_file) as fh:
+        for line in fh.readlines():
+            if line.strip().startswith("#"):
+                continue
+            if line != "":
+                if ":" in line:
+                    printer = line.split(":")[0]
+                    file_path = f"/dev/{printer}"
+                    if os.path.isfile(file_path):
+                        printers.append(file_path)
+                    else:
+                        print(f"Warning, excluding missing printer {file_path}\nMake sure your printers are powered on or edit ./printer_settings.txt")
+    return(printers)
+
+
+
+printers = get_printers()
+print(printers)
+#printers = glob.glob('/dev/ttyACM*')
+if printers == []:
+    print("Error finding all printers!")
+    exit()
+print(f"Printers: {printers}")
+
+
+if os.path.isdir(upload_path):
+    shutil.rmtree(upload_path, ignore_errors=True)
+    
+
+def setup_watch(upload_folder, handle_file_change, init_value=None):
+    if not os.path.isdir(upload_folder):
+        os.makedirs(upload_folder)
+    
+    if handle_file_change != None:
+        observer = Observer()
+        #objects suck hack. 
+        handle_file_change.dispatch = handle_file_change
+        observer.schedule(handle_file_change, upload_folder, recursive=True)
+        observer.start()
+
+
+def setup_path(printer_dev_file):
+    name = printer_dev_file.split("/")[-1]
+    base_folder = f"{upload_path}/{name}"
+    upload_folder = f"{base_folder}/upload"
+    active_print = f"{base_folder}/printing"
+    done_prints = f"{base_folder}/done"
+    if not os.path.isdir(base_folder):
+        os.makedirs(base_folder)
+    if not os.path.isdir(upload_folder):
+        os.makedirs(upload_folder)
+    if not os.path.isdir(active_print):
+        os.makedirs(active_print)
+    if not os.path.isdir(done_prints):
+        os.makedirs(done_prints)
+    return(upload_folder)
+
+def on_upload(event):
+    might_be_code = event._src_path
+    if not os.path.isfile(might_be_code):
+        return
+    if not might_be_code.endswith(".gcode"):
+        return
+    
+
+    printer_name = might_be_code.split("/")[-3]
+    file_name = might_be_code.split("/")[-1]
+    printer_path = f"/dev/{printer_name}"
+    speed = get_printer_settings(printer_name)[0]
+    
+    #move gcode
+    is_gcode = f"{script_path}/printers/{printer_name}/printing/{file_name}"
+    done_gcode = f"{script_path}/printers/{printer_name}/done/{file_name}"
+    shutil.move(might_be_code, is_gcode)
+    
+    cmd = f"{script_path}/gcode_send -d {printer_path} -b {speed} -f '{is_gcode}' && mv {is_gcode} {done_gcode} &"
+    print(cmd)
+    os.system(cmd)
+
+
+def get_printer_settings(printer):
+    with open(settings_file) as fh:
+        for line in fh.readlines():
+            if line.startswith(printer):
+                return_data = line.split(':')[1:]
+                return_data = [x[:-1] for x in return_data]
+                return(return_data)
+    print("Warning! Printer settings not in {settings_file}\nUsing 115200")
+    return(["115200"])
+
+for printer in printers:
+    watch_path = setup_path(printer)
+    setup_watch(watch_path, on_upload)
+
+while True:
+    time.sleep(1)

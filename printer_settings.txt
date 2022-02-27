@@ -1,0 +1,3 @@
+#Dev_name:baud_speed
+ttyACM0:250000
+ttyACM1:250000
