@@ -40,9 +40,9 @@ def get_printers():
                 continue
             if line != "":
                 if ":" in line:
-                    printer = line.split(":")[0]
+                    printer = line.split(":")[0].strip()
                     file_path = f"/dev/{printer}"
-                    if os.path.isfile(file_path):
+                    if os.path.exists(file_path):
                         printers.append(file_path)
                     else:
                         print(f"Warning, excluding missing printer {file_path}\nMake sure your printers are powered on or edit ./printer_settings.txt")
