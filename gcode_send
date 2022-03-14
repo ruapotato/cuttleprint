@@ -23,6 +23,7 @@ cmd_done = False
 
 #CMDs without an retrun ok
 no_ok = ["M105", "M82", "G90"]
+time_out_at_some_point = ["G1"]
 last_ok = time.time()
 
 def process_output():
@@ -47,6 +48,7 @@ def process_output():
 def gcode_cmd(command):
     global cmd_done
     global crunch
+    global last_ok
     
     command = command.strip(" ")
     
@@ -72,7 +74,13 @@ def gcode_cmd(command):
         #print(time.time() - last_ok)
         if time.time() - last_ok < .01:
             print("Warning! OK processed already")
+            last_ok = time.time()
             cmd_done = True
+        if time.time() - last_ok > 90:
+            if sub_cmd in time_out_at_some_point:
+                print(f"Warning! Fake OK injected, TIMEOUT for {command}")
+                last_ok = time.time()
+                cmd_done = True
         time.sleep(.01)
         
     return()

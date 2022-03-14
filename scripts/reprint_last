@@ -1,0 +1,32 @@
+#!/usr/bin/python3
+
+import sys
+import os
+import shutil
+
+try:
+    printer = sys.argv[1]
+except Exception:
+    print("No printer given\nExample: ./reprint_last ttyACM0")
+    exit()
+
+script_path = os.path.dirname(os.path.realpath(__file__))
+printer_path = f"{script_path}/../printers/{printer}"    
+printing_dir = f"{printer_path}/printing"
+upload_dir = f"{printer_path}/upload"
+done_dir = f"{printer_path}/done"
+
+active_prints = os.listdir(printing_dir)
+if len(active_prints) != 0:
+    print("Error: Stuff is printing")
+    exit()
+
+
+files_name = [x for x in os.listdir(done_dir) if x.endswith(".gcode")]
+file_paths = []
+for file_name in files_name:
+    file_paths.append(f"{done_dir}/{file_name}")
+newest = max(file_paths , key = os.path.getctime)
+sort_name = newest.split("/")[-1]
+print(f"Reprinting: {sort_name}")
+shutil.move(newest, f"{upload_dir}/{sort_name}")

@@ -1,0 +1,33 @@
+#!/usr/bin/python3
+
+import sys
+import os
+import shutil
+
+try:
+    printer = sys.argv[1]
+except Exception:
+    print("No printer given\nExample: ./stop_print ttyACM0")
+    exit()
+
+script_path = os.path.dirname(os.path.realpath(__file__))
+printer_path = f"{script_path}/../printers/{printer}"    
+printing_dir = f"{printer_path}/printing"
+upload_dir = f"{printer_path}/upload"
+done_dir = f"{printer_path}/done"
+
+active_prints = os.listdir(printing_dir)
+if len(active_prints) == 0:
+    print("Error: Nothing to cancel")
+    exit()
+
+
+
+files_name = [x for x in os.listdir(printing_dir) if x.endswith(".gcode")]
+file_paths = []
+for file_name in files_name:
+    file_paths.append(f"{printing_dir}/{file_name}")
+newest = max(file_paths , key = os.path.getctime)
+sort_name = newest.split("/")[-1]
+print(f"Canceling: {sort_name}")
+os.remove(newest)

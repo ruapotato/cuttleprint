@@ -109,6 +109,10 @@ def on_upload(event):
     done_gcode = f"{script_path}/printers/{printer_name}/done/{file_name}"
     shutil.move(might_be_code, is_gcode)
     
+    #clean up done dir
+    if os.path.isfile(done_gcode):
+        os.remove(done_gcode)
+    
     cmd = f"{script_path}/gcode_send -d {printer_path} -b {speed} -f '{is_gcode}' && mv {is_gcode} {done_gcode} &"
     print(cmd)
     os.system(cmd)
