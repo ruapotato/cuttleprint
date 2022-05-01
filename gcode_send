@@ -36,7 +36,7 @@ def process_output():
         output = output.strip("\r\n")
         if output.strip() == "":
             continue
-        if output == "ok":
+        if output.startswith("ok") or output == "wait":
             if not cmd_done:
                 print("CMD DONE!")
                 cmd_done = True
