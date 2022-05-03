@@ -1,3 +1,5 @@
-#Dev_name:baud_speed
+#Dev_name:baud_speed or gpx cmd start
 ttyACM0:250000
 ttyACM1:250000
+ttyACM2:gpx -m fcp -f 1.75 -s
+ttyUSB0:115200
