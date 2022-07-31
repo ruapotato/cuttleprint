@@ -1,0 +1,107 @@
+#!/usr/bin/python3
+# AGPL 2022 by David Hamner
+import os
+import glob
+from flask import Flask, render_template, request
+app = Flask("Dice")
+
+@app.route('/upload/<printer>')
+def upload_file_page(printer):
+    page_HTML = f"""
+    <html>
+        <body>
+            <form action = "http://localhost:5000/uploader/{printer}" method = "POST" enctype = "multipart/form-data">
+                <input type = "file" name = "file" />
+                <input type = "submit" value="Upload gcode"/>
+            </form>   
+        </body>
+    </html>"""
+    return (page_HTML)
+
+@app.route('/uploader/<printer>', methods = ['GET', 'POST'])
+def upload_file(printer):
+    if request.method == 'POST':
+        f = request.files['file']
+        if f.filename == "":
+            return("Select gcode first")
+        elif not f.filename.lower().endswith(".gcode"):
+            return("File must end with .gcode")
+        path = f"/dev/shm/printers/{printer}/upload/{f.filename}"
+        print(f"Saving to {path}")
+        f.save(path)
+        return 'file uploaded successfully'
+
+
+@app.route('/reprint/<printer>/<gcode_name>')
+def reprint_print_on(printer, gcode_name):
+    path = f"/dev/shm/printers/{printer}/done/{gcode_name}"
+    reprint_path = f"/dev/shm/printers/{printer}/upload/{gcode_name}"
+    if os.path.isfile(path):
+        os.rename(path, reprint_path)
+        return("Started print")
+    else:
+        retun(f"Uhm, can't fine {path}")
+
+
+
+@app.route('/stop/<printer>')
+def stop_print_on(printer):
+    path = glob.glob(f"/dev/shm/printers/{printer}/printing/*")[0]
+    if os.path.isfile(path):
+        os.remove(path)
+        return("Done<br>Note: GPX printers can only be stopped via the printer interface")
+    else:
+        retun("Uhm, that seem to not be printing things...")
+
+@app.route('/')
+def index():
+    HTML = f"""
+    <html>
+        <body>
+    """
+    for printer in glob.glob("/dev/shm/printers/*"):
+        printer_active = False
+        done_dir = f"{printer}/done"
+        last_print = ""
+        active_print = glob.glob(f"{printer}/printing/*")
+        if active_print != []:
+            printer_active = True
+        if not printer_active:
+            file_paths = glob.glob(f"{printer}/done/*")
+            print(f"DEBUG: {file_paths}")
+            if file_paths != []:
+                newest = max(file_paths , key = os.path.getctime)
+                print(newest)
+                sort_name = newest.split("/")[-1]
+                last_print = newest
+        print(printer_active)
+        printer = printer.split("/")[-1]
+        clean_name = printer.replace("_"," ")
+        # Printer ready
+        if not printer_active and last_print == "":
+            HTML = HTML + f"""
+            <button onclick="window.location.href='/upload/{printer}';">
+                Upload gcode to: {clean_name}
+            </button>
+            """
+        # Printer done printing
+        elif last_print != "":
+            HTML = HTML + f"""
+            <button onclick="window.location.href='/reprint/{printer}/{sort_name}';">
+                Reprint on: {clean_name} ({sort_name})
+            </button>
+            """
+        # Printer printing
+        elif printer_active:
+            HTML = HTML + f"""
+            <button onclick="window.location.href='/stop/{printer}';">
+                STOP: {clean_name} (Printing: {active_print[0]})
+            </button>
+            """
+    HTML = HTML  + f"""
+        </body>
+    </html>
+    """
+    return(HTML)
+
+app.run(debug = True)

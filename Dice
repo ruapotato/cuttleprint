@@ -27,7 +27,7 @@ import shutil
 
 
 script_path = os.path.dirname(os.path.realpath(__file__))
-upload_path = f"{script_path}/printers"
+upload_path = f"/dev/shm/printers"
 settings_file = f"{script_path}/printer_settings.txt"
 
 
@@ -76,7 +76,9 @@ def setup_watch(upload_folder, handle_file_change, init_value=None):
 
 def setup_path(printer_dev_file):
     name = printer_dev_file.split("/")[-1]
-    base_folder = f"{upload_path}/{name}"
+    
+    speed, nice_name = get_printer_settings(name)
+    base_folder = f"{upload_path}/{nice_name}"
     upload_folder = f"{base_folder}/upload"
     active_print = f"{base_folder}/printing"
     done_prints = f"{base_folder}/done"
@@ -98,14 +100,18 @@ def on_upload(event):
         return
     
 
-    printer_name = might_be_code.split("/")[-3]
+    nice_name = might_be_code.split("/")[-3]
+    printer_name = get_dev_name(nice_name)
     file_name = might_be_code.split("/")[-1]
     printer_path = f"/dev/{printer_name}"
-    speed = get_printer_settings(printer_name)[0]
+    print(printer_name)
+    print(get_printer_settings(printer_name))
+    speed, nice_name = get_printer_settings(printer_name)
+    log_path = f"{upload_path}/{nice_name}/log.txt"
     
     #move gcode
-    is_gcode = f"{script_path}/printers/{printer_name}/printing/{file_name}"
-    done_gcode = f"{script_path}/printers/{printer_name}/done/{file_name}"
+    is_gcode = f"{upload_path}/{nice_name}/printing/{file_name}"
+    done_gcode = f"{upload_path}/{nice_name}/done/{file_name}"
     shutil.move(might_be_code, is_gcode)
     
     
@@ -116,19 +122,35 @@ def on_upload(event):
     #Add support for creator pro/GPX
     if not speed.isdigit():
         script_start = speed
-        cmd = f"{script_start} '{is_gcode}' {printer_path} && mv {is_gcode} {done_gcode}"
+        cmd = f"{script_start} '{is_gcode}' {printer_path} | tee -a {log_path} && mv {is_gcode} {done_gcode}"
     else:
-        cmd = f"{script_path}/gcode_send -d {printer_path} -b {speed} -f '{is_gcode}' && mv {is_gcode} {done_gcode}"
+        #cmd = f"{script_path}/gcode_send -d {printer_path} -b {speed} -f '{is_gcode}' && mv {is_gcode} {done_gcode}"
+        cmd = f"{script_path}/gcode_send -d {printer_path} -b {speed} -f '{is_gcode}' | tee -a {log_path} && mv {is_gcode} {done_gcode}"
     print(cmd)
+    
     os.system(cmd)
 
 
-def get_printer_settings(printer):
+def get_dev_name(nice_printer_name):
+    nice_printer_name = nice_printer_name.replace("_", " ")
     with open(settings_file) as fh:
         for line in fh.readlines():
-            if line.startswith(printer):
+            if nice_printer_name in line:
+                printer_dev_name = line.split(":")[0]
+                return(printer_dev_name)
+
+def get_printer_settings(printer):
+    printer = printer.replace("_", " ")
+    if "/" in printer:
+        printer = printer.split("/")[-1]
+    with open(settings_file) as fh:
+        for line in fh.readlines():
+            if printer in line:
                 return_data = line.split(':')[1:]
-                return_data = [x[:-1] for x in return_data]
+                # Clean off newline
+                return_data = [x.strip() for x in return_data]
+                # Replace spaces in nice name
+                return_data[-1] = return_data[-1].replace(" ", "_")
                 return(return_data)
     print("Warning! Printer settings not in {settings_file}\nUsing 115200")
     return(["115200"])
