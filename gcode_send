@@ -94,7 +94,8 @@ time.sleep(3)
 #loading
 #gcode_cmd("M109 S200")
 #time.sleep(60000)
-
+#This printer is really slow
+time.sleep(10)
 with open(args.file) as fh:
     for cmd_in_file in fh.readlines():
         if cmd_in_file.startswith(";"):
