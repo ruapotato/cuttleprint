@@ -5,12 +5,18 @@ import glob
 from flask import Flask, render_template, request
 app = Flask("Dice")
 
+def getIP():
+    import socket
+    #Thanks: https://stackoverflow.com/a/1267524/5282272
+    return (([ip for ip in socket.gethostbyname_ex(socket.gethostname())[2] if not ip.startswith("127.")] or [[(s.connect(("8.8.8.8", 53)), s.getsockname()[0], s.close()) for s in [socket.socket(socket.AF_INET, socket.SOCK_DGRAM)]][0][1]]) + ["no IP found"])[0]
+SEVER_IP = getIP()
+
 @app.route('/upload/<printer>')
 def upload_file_page(printer):
     page_HTML = f"""
     <html>
         <body>
-            <form action = "http://localhost:5000/uploader/{printer}" method = "POST" enctype = "multipart/form-data">
+            <form action = "http://{SEVER_IP}:5000/uploader/{printer}" method = "POST" enctype = "multipart/form-data">
                 <input type = "file" name = "file" />
                 <input type = "submit" value="Upload gcode"/>
             </form>   
@@ -104,4 +110,7 @@ def index():
     """
     return(HTML)
 
-app.run(debug = True)
+
+
+app.run(host=SEVER_IP,debug=False)
+
