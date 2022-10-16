@@ -4,6 +4,7 @@ import os
 import glob
 from flask import Flask, render_template, request
 app = Flask("Dice")
+port = 80
 
 def getIP():
     import socket
@@ -11,17 +12,74 @@ def getIP():
     return (([ip for ip in socket.gethostbyname_ex(socket.gethostname())[2] if not ip.startswith("127.")] or [[(s.connect(("8.8.8.8", 53)), s.getsockname()[0], s.close()) for s in [socket.socket(socket.AF_INET, socket.SOCK_DGRAM)]][0][1]]) + ["no IP found"])[0]
 SEVER_IP = getIP()
 
+
+def css():
+    return """
+    <style>
+        body 
+        {
+            background-color: black;
+        }
+        .buttons
+        {
+            width: 100%;
+            float: left;
+        }
+        
+        .buttons a
+        {
+            background:lightblue;
+            border-radius: 30px;
+            font-size: 30px;
+        }
+        
+        .menu 
+        {
+            width: 100%; /* Set a width if you like */
+            margin-left: 2px;
+            padding-left:30px;
+            float: right;
+            border: 2px solid black;
+            background-color: grey;
+            border-radius: 35px;
+            overflow:hidden;
+        }
+
+        .menu a 
+        {
+            background-color: gray; /* Grey background color */
+            color: black; /* Black text color */
+            display: block; /* Make the links appear below each other */
+            padding: 5px; /* Add some padding */
+            padding-left: 20px;
+            font-size: 30px;
+            text-decoration: none; /* Remove underline from links */
+            float: left;
+        }
+    </style>"""
+
+
+def menu_html():
+    return f"""
+    
+        <div class="menu">
+            <a href="http://{SEVER_IP}:{port}">Dice</a>
+            <a href="https://git.sr.ht/~hamner/Dice">About</a>
+        </div>"""
+
 @app.route('/upload/<printer>')
 def upload_file_page(printer):
     page_HTML = f"""
     <html>
         <body>
-            <form action = "http://{SEVER_IP}:5000/uploader/{printer}" method = "POST" enctype = "multipart/form-data">
+            <form action = "http://{SEVER_IP}:{port}/uploader/{printer}" method = "POST" enctype = "multipart/form-data">
                 <input type = "file" name = "file" />
                 <input type = "submit" value="Upload gcode"/>
             </form>   
         </body>
     </html>"""
+    
+    page_HTML = f"<body>{css()}\n{menu_html()}\n{page_HTML}\n</div>\n</body>"
     return (page_HTML)
 
 @app.route('/uploader/<printer>', methods = ['GET', 'POST'])
@@ -35,18 +93,28 @@ def upload_file(printer):
         path = f"/dev/shm/printers/{printer}/upload/{f.filename}"
         print(f"Saving to {path}")
         f.save(path)
-        return 'file uploaded successfully'
+        reloader = f"""
+            <meta http-equiv="refresh" content="time; URL=http://{SEVER_IP}:{port}" />
+            """
+        
+        page_HTML = "<p>file uploaded successfully</p>"
+        page_HTML = f"{reloader}<body>{css()}\n{menu_html()}\n{page_HTML}\n</div>\n</body>"
+        return(page_HTML)
 
 
 @app.route('/reprint/<printer>/<gcode_name>')
 def reprint_print_on(printer, gcode_name):
+    page_HTML = ""
     path = f"/dev/shm/printers/{printer}/done/{gcode_name}"
     reprint_path = f"/dev/shm/printers/{printer}/upload/{gcode_name}"
     if os.path.isfile(path):
         os.rename(path, reprint_path)
-        return("Started print")
+        page_HTML = "<p>Started print</p>"
     else:
-        retun(f"Uhm, can't fine {path}")
+        page_HTML = f"<p>Uhm, can't fine {path}</p>"
+    
+    page_HTML = f"<body>{css()}\n{menu_html()}\n{page_HTML}\n</div>\n</body>"
+    return(page_HTML)
 
 
 
@@ -55,13 +123,17 @@ def stop_print_on(printer):
     path = glob.glob(f"/dev/shm/printers/{printer}/printing/*")[0]
     if os.path.isfile(path):
         os.remove(path)
-        return("Done<br>Note: GPX printers can only be stopped via the printer interface")
+        page_HTML = "<p>Done</p><p>Note: GPX printers can only be stopped via the printer interface</p>"
     else:
-        retun("Uhm, that seem to not be printing things...")
+        page_HTML = "<p>Uhm, that seem to not be printing things...</p>"
+    
+    page_HTML = f"<body>{css()}\n{menu_html()}\n{page_HTML}\n</div>\n</body>"
+
 
 @app.route('/')
 def index():
     HTML = f"""
+    <meta http-equiv=refresh content=15>
     <html>
         <body>
     """
@@ -83,6 +155,7 @@ def index():
         print(printer_active)
         printer = printer.split("/")[-1]
         clean_name = printer.replace("_"," ")
+        
         # Printer ready
         if not printer_active and last_print == "":
             HTML = HTML + f"""
@@ -96,6 +169,9 @@ def index():
             <button onclick="window.location.href='/reprint/{printer}/{sort_name}';">
                 Reprint on: {clean_name} ({sort_name})
             </button>
+            <button onclick="window.location.href='/upload/{printer}';">
+                Upload gcode to: {clean_name}
+            </button>
             """
         # Printer printing
         elif printer_active:
@@ -104,13 +180,11 @@ def index():
                 STOP: {clean_name} (Printing: {active_print[0]})
             </button>
             """
-    HTML = HTML  + f"""
-        </body>
-    </html>
-    """
+        HTML = f"{HTML}<br>"
+    HTML = f"<body>{css()}\n{menu_html()}\n{HTML}\n</div>\n</body>"
     return(HTML)
 
 
 
-app.run(host=SEVER_IP,debug=False)
+app.run(host=SEVER_IP,port=port,debug=False)
 
