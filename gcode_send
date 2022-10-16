@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-#GPL3 by David Hamner
+#AGPL by David Hamner
 
 
 import subprocess

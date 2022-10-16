@@ -18,12 +18,14 @@ def css():
     <style>
         body 
         {
-            background-color: black;
+            background-color: #6CA5DE;
         }
+        
         .buttons
         {
-            width: 100%;
-            float: left;
+            background-color: #E1B637;
+            border-radius: 35px;
+            font-size: 20px;
         }
         
         .buttons a
@@ -33,27 +35,34 @@ def css():
             font-size: 30px;
         }
         
+        .printer_bar
+        {
+            background-image: linear-gradient(#6CA5DE, purple, #6CA5DE);
+            width: 100%; 
+            padding: 5px;
+            border-radius: 30px;
+        }
         .menu 
         {
-            width: 100%; /* Set a width if you like */
+            width: 100%; 
             margin-left: 2px;
             padding-left:30px;
-            float: right;
-            border: 2px solid black;
-            background-color: grey;
+            border: 2px solid purple;
+            background-color: black;
             border-radius: 35px;
             overflow:hidden;
+            color: white;
         }
 
         .menu a 
         {
-            background-color: gray; /* Grey background color */
-            color: black; /* Black text color */
-            display: block; /* Make the links appear below each other */
-            padding: 5px; /* Add some padding */
+            background-color: black; 
+            color: white;
+            display: block; 
+            padding: 5px; 
             padding-left: 20px;
             font-size: 30px;
-            text-decoration: none; /* Remove underline from links */
+            text-decoration: none;
             float: left;
         }
     </style>"""
@@ -70,16 +79,12 @@ def menu_html():
 @app.route('/upload/<printer>')
 def upload_file_page(printer):
     page_HTML = f"""
-    <html>
-        <body>
-            <form action = "http://{SEVER_IP}:{port}/uploader/{printer}" method = "POST" enctype = "multipart/form-data">
+            <form class='menu' action = "http://{SEVER_IP}:{port}/uploader/{printer}" method = "POST" enctype = "multipart/form-data">
                 <input type = "file" name = "file" />
                 <input type = "submit" value="Upload gcode"/>
-            </form>   
-        </body>
-    </html>"""
+            </form>"""
     
-    page_HTML = f"<body>{css()}\n{menu_html()}\n{page_HTML}\n</div>\n</body>"
+    page_HTML = f"<body>{css()}\n{menu_html()}\n{page_HTML}\n</body>"
     return (page_HTML)
 
 @app.route('/uploader/<printer>', methods = ['GET', 'POST'])
@@ -132,11 +137,7 @@ def stop_print_on(printer):
 
 @app.route('/')
 def index():
-    HTML = f"""
-    <meta http-equiv=refresh content=15>
-    <html>
-        <body>
-    """
+    HTML = ""
     for printer in glob.glob("/dev/shm/printers/*"):
         printer_active = False
         done_dir = f"{printer}/done"
@@ -159,30 +160,36 @@ def index():
         # Printer ready
         if not printer_active and last_print == "":
             HTML = HTML + f"""
-            <button onclick="window.location.href='/upload/{printer}';">
-                Upload gcode to: {clean_name}
-            </button>
+            <div class='printer_bar'>
+                <button class='buttons' onclick="window.location.href='/upload/{printer}';">
+                    Upload gcode to: {clean_name}
+                </button>
+            </div>
             """
         # Printer done printing
         elif last_print != "":
             HTML = HTML + f"""
-            <button onclick="window.location.href='/reprint/{printer}/{sort_name}';">
-                Reprint on: {clean_name} ({sort_name})
-            </button>
-            <button onclick="window.location.href='/upload/{printer}';">
-                Upload gcode to: {clean_name}
-            </button>
+            <div class='printer_bar'>
+                <button class='buttons' onclick="window.location.href='/reprint/{printer}/{sort_name}';">
+                    Reprint on: {clean_name} ({sort_name})
+                </button>
+                <button class='buttons' onclick="window.location.href='/upload/{printer}';">
+                    Upload gcode to: {clean_name}
+                </button>
+            </div>
             """
         # Printer printing
         elif printer_active:
             HTML = HTML + f"""
-            <button onclick="window.location.href='/stop/{printer}';">
-                STOP: {clean_name} (Printing: {active_print[0]})
-            </button>
+            <div class='printer_bar'>
+                <button class='buttons' onclick="window.location.href='/stop/{printer}';">
+                    STOP: {clean_name} (Printing: {active_print[0]})
+                </button>
+            </div>
             """
-        HTML = f"{HTML}<br>"
-    HTML = f"<body>{css()}\n{menu_html()}\n{HTML}\n</div>\n</body>"
-    return(HTML)
+    full_HTML = f"<meta http-equiv=refresh content=15>\n"
+    full_HTML = full_HTML + f"<body>{css()}\n{menu_html()}\n{HTML}\n</body>"
+    return(full_HTML)
 
 
 

@@ -33,4 +33,4 @@ Once a print completes, it Gcode will be moved to `./printers/<your_printer>/don
 
 Licence
 ---
-GPL3 by David Hamner
+AGPL by David Hamner
