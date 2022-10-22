@@ -4,20 +4,19 @@ Dice is a simple way to spoon-feed Gcode to all your printers from a single comp
 
 Setup
 ---
-Run: `apt get install python3-watchdog`
-Edit `./printer_settings.txt` with the serial connection names in /dev/ and the needed baud rate. If your serial connection is `/dev/ttyACM0` and your baud rate is `250000`, the config line would look like this: `ttyACM0:250000`
-Typical baud rates are 9600,115200,250000 but will vary depending on your printer. 
-Make sure to add a line for each of your printers. 
+ - Run: `apt get install python3-watchdog python3-flask`
+ - Run: ./startup
+ - Open: http://localhost/post-hast to config printers
 
 Control folder structure
 ----
 If your conntion is called `/dev/ttyACM0` you'll have the folling files:
-`./printers/ttyACM0/upload`
-`./printers/ttyACM0/printing`
-`./printers/ttyACM0/done`
+`/dev/shm/ttyACM0/upload`
+`/dev/shm/ttyACM0/printing`
+`/dev/shm/ttyACM0/done`
 If you have more than one printer/serial connection, you'll have the above folders for each printer. 
 
-Printing
+Printing manually
 ---
 Copy your Gcode to `./printers/<your_printer>/upload`.
 Dice will detect this, and your Gcode will be moved to `./printers/<your_printer>/printing`. This will also kick off the `gcode_send` process to spoon-feed your printer serial style. 
