@@ -1,0 +1,43 @@
+#!/bin/bash
+
+if [ "$EUID" -ne 0 ]
+  then echo "Run as root"
+  exit 1
+fi
+
+
+cd "$(dirname "$0")"
+
+#Make sure to close all running programs on ctrl c
+trap ctrl_c INT
+
+function ctrl_c() {
+    echo "leaning up..."
+    kill $Dice_PID $web_PID
+    exit
+}
+
+#start DICE
+./Dice &
+Dice_PID=$!
+
+
+#start web_ui
+./web_ui &
+web_PID=$?
+
+
+while :
+do
+    echo "" > ./reboot_needed.trigger
+    tail -f ./reboot_needed.trigger | sed '/reboot/ q'
+    echo -e "\n\n\nRebooting Dice\n\n\n"
+    kill $Dice_PID
+    ./Dice &
+    Dice_PID=$!
+done
+
+
+
+
+

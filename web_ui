@@ -2,15 +2,58 @@
 # AGPL 2022 by David Hamner
 import os
 import glob
+import time
 from flask import Flask, render_template, request
 app = Flask("Dice")
 port = 80
+script_path = os.path.dirname(os.path.realpath(__file__))
+config_file_path = f"{script_path}/printer_settings.txt"
+
 
 def getIP():
     import socket
     #Thanks: https://stackoverflow.com/a/1267524/5282272
     return (([ip for ip in socket.gethostbyname_ex(socket.gethostname())[2] if not ip.startswith("127.")] or [[(s.connect(("8.8.8.8", 53)), s.getsockname()[0], s.close()) for s in [socket.socket(socket.AF_INET, socket.SOCK_DGRAM)]][0][1]]) + ["no IP found"])[0]
 SEVER_IP = getIP()
+
+
+def get_printer_devs():
+    
+    types_of_printers = ["ttyUSB", "ttyACM"]
+    total_printers = []
+    for printer_type in types_of_printers:
+        total_printers = total_printers + glob.glob(f"/dev/{printer_type}*")
+    
+    return(total_printers)
+
+
+def pull_purinter_name(printer):
+    with open(config_file_path) as fh:
+        for line in fh.readlines():
+            if printer in line:
+                return(line.split(":")[-1])
+
+def pull_purinter_speed(printer):
+    with open(config_file_path) as fh:
+        for line in fh.readlines():
+            if printer in line:
+                return(line.split(":")[1])
+
+def write_config(printers):
+    config_text = ""
+    for printer in printers:
+        config_name, speed = printers[printer]
+        config_text = config_text + f"{printer}:{speed}:{config_name}\n"
+    
+    config_text = "#Dev_name:baud_speed or gpx cmd start:Unique nice name\n" + config_text
+    
+    with open(config_file_path, "w") as fh:
+        fh.write(config_text)
+    print(config_text)
+
+def reboot_dice():
+    with open(f"{script_path}/reboot_needed.trigger", "a+") as fh:
+        fh.write("reboot\n")
 
 
 def css():
@@ -73,8 +116,68 @@ def menu_html():
     
         <div class="menu">
             <a href="http://{SEVER_IP}:{port}">Dice</a>
+            <a href="http://{SEVER_IP}:{port}/post-hast">Config</a>
             <a href="https://git.sr.ht/~hamner/Dice">About</a>
         </div>"""
+
+
+@app.route('/post-hast', methods=['POST'])
+def form_post():
+    # handle the POST request
+    if request.method == 'POST':
+        printer_data = request.form.keys()
+        printers_names = []
+        pritners = {}
+        for possible_printer in printer_data:
+            if not possible_printer.endswith("baud_rate"):
+                printers_names.append(possible_printer)
+        
+        for printer in printers_names:
+            baud_rate_name = f"{printer}_baud_rate"
+            baud_rate = request.form.get(baud_rate_name)
+            printer_name = request.form.get(printer)
+            if printer_name != "None":
+                pritners[printer] = [printer_name, baud_rate]
+        print(pritners)
+        
+        write_config(pritners)
+        reboot_dice()
+        return(f'<meta http-equiv="refresh" content=3; URL=http://{SEVER_IP}:{port}" />Restarting..')
+
+
+@app.route('/post-hast', methods=['get'])
+def form_get():
+    return_html = ""
+    devs = get_printer_devs()
+    
+    for possible_printer in devs:
+        short_name = possible_printer.split("/")[-1].strip()
+        config_name = pull_purinter_name(short_name)
+        printer_speed = pull_purinter_speed(short_name)
+        print(f"DEBUG: {printer_speed}")
+        return_html = return_html + f"""
+        <div class='menu'>
+        <label>{short_name}: <input type="text" value="{config_name}" placeholder="{config_name}" name="{short_name}"></label>
+        
+        <select NAME="{short_name}_baud_rate">
+        """
+        for speed in ["9600", "115200", "250000", "gpx -m fcp -f 1.75 -s"]:
+            if speed == printer_speed:
+                return_html = return_html + f'<option selected name="{speed}">{speed}</option>\n'
+            else:
+                return_html = return_html + f'<option name="{speed}">{speed}</option>\n'
+        
+        return_html = return_html + f"""
+        </select>
+        </div>
+        """
+    return f'''
+    <body>{css()}\n{menu_html()}\n
+    <form method="POST">
+    {return_html}
+    <input type="submit" value="OVERWIRE config">
+    </form>'''
+
 
 @app.route('/upload/<printer>')
 def upload_file_page(printer):
