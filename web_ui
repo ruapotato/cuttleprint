@@ -110,6 +110,9 @@ def upload_file(printer):
 @app.route('/reprint/<printer>/<gcode_name>')
 def reprint_print_on(printer, gcode_name):
     page_HTML = ""
+    reloader = f"""
+        <meta http-equiv="refresh" content="time; URL=http://{SEVER_IP}:{port}" />
+        """
     path = f"/dev/shm/printers/{printer}/done/{gcode_name}"
     reprint_path = f"/dev/shm/printers/{printer}/upload/{gcode_name}"
     if os.path.isfile(path):
@@ -118,7 +121,7 @@ def reprint_print_on(printer, gcode_name):
     else:
         page_HTML = f"<p>Uhm, can't fine {path}</p>"
     
-    page_HTML = f"<body>{css()}\n{menu_html()}\n{page_HTML}\n</div>\n</body>"
+    page_HTML = f"{reloader}<body>{css()}\n{menu_html()}\n{page_HTML}\n</div>\n</body>"
     return(page_HTML)
 
 
@@ -126,13 +129,17 @@ def reprint_print_on(printer, gcode_name):
 @app.route('/stop/<printer>')
 def stop_print_on(printer):
     path = glob.glob(f"/dev/shm/printers/{printer}/printing/*")[0]
+    reloader = f"""
+            <meta http-equiv="refresh" content="time; URL=http://{SEVER_IP}:{port}" />
+            """
     if os.path.isfile(path):
         os.remove(path)
         page_HTML = "<p>Done</p><p>Note: GPX printers can only be stopped via the printer interface</p>"
     else:
         page_HTML = "<p>Uhm, that seem to not be printing things...</p>"
     
-    page_HTML = f"<body>{css()}\n{menu_html()}\n{page_HTML}\n</div>\n</body>"
+    page_HTML = f"{reloader}<body>{css()}\n{menu_html()}\n{page_HTML}\n</div>\n</body>"
+    return(page_HTML)
 
 
 @app.route('/')
