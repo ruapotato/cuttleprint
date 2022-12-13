@@ -4,7 +4,7 @@ Dice is a simple way to spoon-feed Gcode to all your printers from a single comp
 
 Flatpak
 ---
- - sudo flatpak-builder build-dir com.hackers-game.dice.yml
+ - sudo flatpak-builder build-dir com.hackers_game.dice.yml
  - flatpak-builder --user --install --force-clean build-dir com.hackers_game.dice.yml
  - flatpak run com.hackers_game.dice
 
