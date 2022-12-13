@@ -7,8 +7,8 @@ cd "$(dirname "$0")"
 trap ctrl_c INT
 
 function ctrl_c() {
-    echo "leaning up..."
-    kill $Dice_PID $web_PID
+    echo "Cleaning up..."
+    kill -9 $Dice_PID $web_PID
     exit
 }
 
@@ -19,15 +19,17 @@ Dice_PID=$!
 
 #start web_ui
 ./web_ui &
-web_PID=$?
+#web_PID=$?
 
 
 while :
 do
-    echo "" > /var/data/reboot_needed.trigger
-    tail -f /var/data/reboot_needed.trigger | sed '/reboot/ q'
+    echo "" > ~/reboot_needed.trigger
+    tail -f ~/reboot_needed.trigger | sed '/reboot/ q'
     echo -e "\n\n\nRebooting Dice\n\n\n"
-    kill $Dice_PID
+    kill -9 $Dice_PID
+    echo killed $Dice_PID
+    #kill $(ps -ef | grep "Dice" | awk '{print $2}' | head -n 1)
     ./Dice &
     Dice_PID=$!
 done

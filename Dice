@@ -25,22 +25,22 @@ from watchdog.events import LoggingEventHandler
 import glob
 import shutil
 
-
+print("Sarting Dice!")
 script_path = os.path.dirname(os.path.realpath(__file__))
 home_dir = os.path.expanduser('~')
-upload_path = f"/dev/shm/printers"
+upload_path = f"{home_dir}/printers"
 settings_file = f"{home_dir}/printer_settings.txt"
-
 
 def get_printers():
     printers = []
-    with open(settings_file, "w+") as fh:
+    with open(settings_file) as fh:
         for line in fh.readlines():
             if line.strip().startswith("#"):
                 continue
             if line != "":
                 if ":" in line:
                     printer = line.split(":")[0].strip()
+                    print(f"Looking for {printer}")
                     file_path = f"/dev/{printer}"
                     if os.path.exists(file_path):
                         printers.append(file_path)
@@ -49,13 +49,16 @@ def get_printers():
     return(printers)
 
 
+if not os.path.isfile(settings_file):
+    print(f"Can't find settings in {settings_file}")
+    exit(2)
 
 printers = get_printers()
 print(printers)
 #printers = glob.glob('/dev/ttyACM*')
 if printers == []:
     print("Error finding all printers!")
-    exit()
+    exit(1)
 print(f"Printers: {printers}")
 
 

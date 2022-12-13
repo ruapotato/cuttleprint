@@ -86,8 +86,8 @@ def gcode_cmd(command):
     return()
 
 # creating bg processing Thread
-bg_output_processing = Thread(target = process_output)
-bg_output_processing.setDaemon(True)                  
+bg_output_processing = Thread(target = process_output, daemon = True)
+#bg_output_processing.setDaemon(True)                  
 bg_output_processing.start()                
 time.sleep(3)
 

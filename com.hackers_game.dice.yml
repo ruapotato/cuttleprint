@@ -7,17 +7,23 @@ modules:
   - name: dice
     buildsystem: simple
     build-commands:
+      - install -Dm755 com.hackers_game.dice.sh /app/bin/com.hackers_game.dice.sh
+      - install -Dm644 com.hackers_game.dice.desktop /app/share/applications/com.hackers_game.dice.desktop
       - install -D ./startup /app/bin/startup
       - install -D gcode_send /app/bin/gcode_send
       - install -D printer_settings.txt /app/etc/printer_default_settings.txt
       - install -D Dice /app/bin/Dice
       - install -D web_ui /app/bin/web_ui
       - pip3 install --prefix=/app -U Flask
-      - pip3 install --prefix=/app serial
+      - pip3 install --prefix=/app pyserial
       - pip3 install --prefix=/app watchdog
     sources:
       - type: dir
         path: ./
+      - type: file
+        path: com.hackers_game.dice.desktop
+      - type: file
+        path: com.hackers_game.dice.sh
 
 build-options:
   build-args:
@@ -26,3 +32,4 @@ finish-args:
   # Needs to talk to the network:
   - --device=all
   - --share=network
+  - --filesystem=home

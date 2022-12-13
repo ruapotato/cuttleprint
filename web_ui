@@ -7,8 +7,12 @@ from flask import Flask, render_template, request
 app = Flask("Dice")
 port = 8000
 home_dir = os.path.expanduser('~')
+printers_path = f"{home_dir}/printers"
+
 script_path = os.path.dirname(os.path.realpath(__file__))
 config_file_path = f"{home_dir}/printer_settings.txt"
+if not os.path.isfile(config_file_path):
+    os.mknod(config_file_path)
 
 
 def getIP():
@@ -118,7 +122,7 @@ def menu_html():
         <div class="menu">
             <a href="http://{SEVER_IP}:{port}">Dice</a>
             <a href="http://{SEVER_IP}:{port}/post-hast">Config</a>
-            <a href="https://git.sr.ht/~hamner/Dice">About</a>
+            <a href="https://source.puri.sm/david.hamner/Dice">About</a>
         </div>"""
 
 
@@ -199,7 +203,7 @@ def upload_file(printer):
             return("Select gcode first")
         elif not f.filename.lower().endswith(".gcode"):
             return("File must end with .gcode")
-        path = f"/dev/shm/printers/{printer}/upload/{f.filename}"
+        path = f"{printers_path}/{printer}/upload/{f.filename}"
         print(f"Saving to {path}")
         f.save(path)
         reloader = f"""
@@ -217,8 +221,8 @@ def reprint_print_on(printer, gcode_name):
     reloader = f"""
         <meta http-equiv="refresh" content="time; URL=http://{SEVER_IP}:{port}" />
         """
-    path = f"/dev/shm/printers/{printer}/done/{gcode_name}"
-    reprint_path = f"/dev/shm/printers/{printer}/upload/{gcode_name}"
+    path = f"{printers_path}/{printer}/done/{gcode_name}"
+    reprint_path = f"{printers_path}/{printer}/upload/{gcode_name}"
     if os.path.isfile(path):
         os.rename(path, reprint_path)
         page_HTML = "<p>Started print</p>"
@@ -232,7 +236,7 @@ def reprint_print_on(printer, gcode_name):
 
 @app.route('/stop/<printer>')
 def stop_print_on(printer):
-    path = glob.glob(f"/dev/shm/printers/{printer}/printing/*")[0]
+    path = glob.glob(f"{printers_path}/{printer}/printing/*")[0]
     reloader = f"""
             <meta http-equiv="refresh" content="time; URL=http://{SEVER_IP}:{port}" />
             """
@@ -249,7 +253,7 @@ def stop_print_on(printer):
 @app.route('/')
 def index():
     HTML = ""
-    for printer in glob.glob("/dev/shm/printers/*"):
+    for printer in glob.glob(f"{printers_path}/*"):
         printer_active = False
         done_dir = f"{printer}/done"
         last_print = ""
