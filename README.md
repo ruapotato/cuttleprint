@@ -2,6 +2,12 @@
 Once you finish slicing, it's time to Dice up your Gode to one or many 3d printers. 
 Dice is a simple way to spoon-feed Gcode to all your printers from a single computer. It will detect all your serial connections and create a control folder for each.
 
+Flatpak
+---
+ - sudo flatpak-builder build-dir com.hackers-game.dice.yml
+ - flatpak-builder --user --install --force-clean build-dir com.hackers-game.dice.yml
+ - flatpak run com.hackers_game.dice
+
 Setup
 ---
  - Run: `apt get install python3-watchdog python3-flask`

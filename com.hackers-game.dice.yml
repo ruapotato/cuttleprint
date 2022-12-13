@@ -1,0 +1,28 @@
+app-id: com.hackers_game.dice
+runtime: org.freedesktop.Platform
+runtime-version: "22.08"
+sdk: org.freedesktop.Sdk
+command: "startup"
+modules:
+  - name: dice
+    buildsystem: simple
+    build-commands:
+      - install -D ./startup /app/bin/startup
+      - install -D gcode_send /app/bin/gcode_send
+      - install -D printer_settings.txt /app/etc/printer_default_settings.txt
+      - install -D Dice /app/bin/Dice
+      - install -D web_ui /app/bin/web_ui
+      - pip3 install --prefix=/app -U Flask
+      - pip3 install --prefix=/app serial
+      - pip3 install --prefix=/app watchdog
+    sources:
+      - type: dir
+        path: ./
+
+build-options:
+  build-args:
+    - --share=network
+finish-args:
+  # Needs to talk to the network:
+  - --device=all
+  - --share=network

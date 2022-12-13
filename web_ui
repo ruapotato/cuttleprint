@@ -5,9 +5,10 @@ import glob
 import time
 from flask import Flask, render_template, request
 app = Flask("Dice")
-port = 80
+port = 8000
+home_dir = os.path.expanduser('~')
 script_path = os.path.dirname(os.path.realpath(__file__))
-config_file_path = f"{script_path}/printer_settings.txt"
+config_file_path = f"{home_dir}/printer_settings.txt"
 
 
 def getIP():
@@ -52,7 +53,7 @@ def write_config(printers):
     print(config_text)
 
 def reboot_dice():
-    with open(f"{script_path}/reboot_needed.trigger", "a+") as fh:
+    with open(f"{home_dir}/reboot_needed.trigger", "a+") as fh:
         fh.write("reboot\n")
 
 

@@ -27,13 +27,14 @@ import shutil
 
 
 script_path = os.path.dirname(os.path.realpath(__file__))
+home_dir = os.path.expanduser('~')
 upload_path = f"/dev/shm/printers"
-settings_file = f"{script_path}/printer_settings.txt"
+settings_file = f"{home_dir}/printer_settings.txt"
 
 
 def get_printers():
     printers = []
-    with open(settings_file) as fh:
+    with open(settings_file, "w+") as fh:
         for line in fh.readlines():
             if line.strip().startswith("#"):
                 continue
