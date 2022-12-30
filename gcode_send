@@ -110,4 +110,5 @@ with open(args.file) as fh:
         gcode_cmd(cmd_in_file)
 
 print("Print done!")
+time.sleep(10)
 crunch.close()
