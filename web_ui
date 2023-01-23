@@ -4,7 +4,7 @@ import os
 import glob
 import time
 from flask import Flask, render_template, request
-app = Flask("Dice")
+app = Flask("Cuttleprint")
 port = 8000
 home_dir = os.path.expanduser('~')
 printers_path = f"{home_dir}/printers"
@@ -56,7 +56,7 @@ def write_config(printers):
         fh.write(config_text)
     print(config_text)
 
-def reboot_dice():
+def reboot_cuttleprint():
     with open(f"{home_dir}/reboot_needed.trigger", "a+") as fh:
         fh.write("reboot\n")
 
@@ -120,9 +120,9 @@ def menu_html():
     return f"""
     
         <div class="menu">
-            <a href="http://{SEVER_IP}:{port}">Dice</a>
+            <a href="http://{SEVER_IP}:{port}">Cuttleprint</a>
             <a href="http://{SEVER_IP}:{port}/post-hast">Config</a>
-            <a href="https://source.puri.sm/david.hamner/Dice">About</a>
+            <a href="https://source.puri.sm/david.hamner/cuttleprint">About</a>
         </div>"""
 
 
@@ -146,7 +146,7 @@ def form_post():
         print(pritners)
         
         write_config(pritners)
-        reboot_dice()
+        reboot_cuttleprint()
         return(f'<meta http-equiv="refresh" content=3; URL=http://{SEVER_IP}:{port}" />Restarting..')
 
 

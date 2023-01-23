@@ -8,13 +8,13 @@ trap ctrl_c INT
 
 function ctrl_c() {
     echo "Cleaning up..."
-    kill -9 $Dice_PID $web_PID
+    kill -9 $Cuttleprint_PID $web_PID
     exit
 }
 
 #start DICE
-./Dice &
-Dice_PID=$!
+./Cuttleprint &
+Cuttleprint_PID=$!
 
 
 #start web_ui
@@ -26,10 +26,10 @@ while :
 do
     echo "" > ~/reboot_needed.trigger
     tail -f ~/reboot_needed.trigger | sed '/reboot/ q'
-    echo -e "\n\n\nRebooting Dice\n\n\n"
-    kill -9 $Dice_PID
-    echo killed $Dice_PID
-    #kill $(ps -ef | grep "Dice" | awk '{print $2}' | head -n 1)
-    ./Dice &
-    Dice_PID=$!
+    echo -e "\n\n\nRebooting Cuttleprint\n\n\n"
+    kill -9 $Cuttleprint_PID
+    echo killed $Cuttleprint_PID
+    #kill $(ps -ef | grep "Cuttleprint" | awk '{print $2}' | head -n 1)
+    ./Cuttleprint &
+    Cuttleprint_PID=$!
 done

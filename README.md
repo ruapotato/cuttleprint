@@ -1,12 +1,12 @@
-# Dice
-Once you finish slicing, it's time to Dice up your Gode to one or many 3d printers. 
-Dice is a simple way to spoon-feed Gcode to all your printers from a single computer. It will detect all your serial connections and create a control folder for each.
+# Cuttleprint
+Once you finish slicing, it's time to Cuttleprint up your Gode to one or many 3d printers. 
+Cuttleprint is a simple way to spoon-feed Gcode to all your printers from a single computer. It will detect all your serial connections and create a control folder for each.
 
 Flatpak
 ---
- - sudo flatpak-builder build-dir com.hackers_game.dice.yml
- - flatpak-builder --user --install --force-clean build-dir com.hackers_game.dice.yml
- - flatpak run com.hackers_game.dice
+ - sudo flatpak-builder build-dir com.hackers_game.cuttleprint.yml
+ - flatpak-builder --user --install --force-clean build-dir com.hackers_game.cuttleprint.yml
+ - flatpak run com.hackers_game.cuttleprint
 
 Setup
 ---
@@ -25,7 +25,7 @@ If you have more than one printer/serial connection, you'll have the above folde
 Printing manually
 ---
 Copy your Gcode to `./printers/<your_printer>/upload`.
-Dice will detect this, and your Gcode will be moved to `./printers/<your_printer>/printing`. This will also kick off the `gcode_send` process to spoon-feed your printer serial style. 
+Cuttleprint will detect this, and your Gcode will be moved to `./printers/<your_printer>/printing`. This will also kick off the `gcode_send` process to spoon-feed your printer serial style. 
 
 Cansling a print
 ---

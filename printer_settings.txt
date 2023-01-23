@@ -1,5 +1,0 @@
-#Dev_name:baud_speed or gpx cmd start:Unique nice name
-ttyACM1:250000:Robo 2
-ttyACM2:250000:Robo 1
-ttyACM0:gpx -m fcp -f 1.75 -s:Creator Pro
-ttyUSB2:115200:Odd ball
