@@ -2,7 +2,7 @@
 #GPL2 Based on: https://gist.github.com/G-UK/ded781ea016e2c95addba2508c6bbfbe
 
 #INSTALL="wpasupplicant sudo aptitude ca-certificates crda fake-hwclock firmware-brcm80211 gnupg man-db manpages net-tools ntp usb-modeswitch ssh wget xz-utils xorg xorgxrdp xrdp lxqt lightdm libegl-mesa0 libgbm1 libgl1-mesa-dev libgl1-mesa-dri libglapi-mesa libglx-mesa0 libosmesa6  mesa-opencl-icd mesa-va-drivers mesa-vdpau-drivers mesa-vulkan-drivers mesa-utils curl binutils cmake git build-essential"
-INSTALL="wpasupplicant sudo aptitude ca-certificates crda fake-hwclock firmware-brcm80211 gnupg man-db manpages net-tools ntp usb-modeswitch ssh wget xz-utils curl binutils cmake git build-essential python3 python3-serial python3-watchdog python3-flask gpx wireless-tools xfce4"
+INSTALL="wpasupplicant sudo aptitude ca-certificates crda fake-hwclock firmware-brcm80211 gnupg man-db manpages net-tools ntp usb-modeswitch ssh wget xz-utils curl binutils cmake git build-essential dbus-x11 python3 python3-serial python3-watchdog python3-flask gpx wireless-tools xfce4 xfce4-goodies network-manager network-manager-gnome"
 
 #Update repos
 #PI repos
@@ -23,17 +23,6 @@ export DEBIAN_FRONTEND=noninteractive
 apt-get -o Dpkg::Options::="--force-confold" -o Dpkg::Options::="--force-confdef" dist-upgrade -q -y --allow-downgrades --allow-remove-essential --allow-change-held-packages
 
 
-# Setup network 
-echo """auto lo
-iface lo inet loopback
-
-auto eth0
-iface eth0 inet dhcp
-
-allow-hotplug wlan0
-iface wlan0 inet dhcp
-    wpa-conf /etc/wpa_supplicant/wpa_supplicant.conf""" > /etc/network/interfaces
-    
 echo """nameserver 1.1.1.1
 nameserver 1.0.0.1""" > /etc/resolv.conf
 
@@ -83,8 +72,6 @@ echo '/opt/vc/lib' > /etc/ld.so.conf.d/00-vmcs.conf
 echo 'Defaults        secure_path="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/opt/vc/bin"' > /etc/sudoers.d/opt-path
 
 
-
-
 echo """
 SUBSYSTEM=="vchiq",GROUP="video",MODE="0660"
 SUBSYSTEM=="vcio",GROUP="video",MODE="0660"
@@ -132,9 +119,25 @@ KERNEL=="ttyS0", PROGRAM="/bin/sh -c '\
 '", SYMLINK+="serial%c" """ > /etc/udev/rules.d/99-com.rules
 
 
+echo "Configuring startup program"
+mkdir -p /home/cuttleprint/.config/autostart/
+echo """
+[Desktop Entry]
+Type=Application
+Exec=/usr/bin/xfce4-terminal -e /Cuttleprint/startup
+Hidden=false
+X-MATE-Autostart-enabled=true
+Name[en_US]=Cuttleprint
+Name=Cuttleprint
+Comment[en_US]=
+Comment=
+X-MATE-Autostart-Delay=0
+""" > /home/cuttleprint/.config/autostart/cuttleprint.desktop
+chown cuttleprint:cuttleprint -R /home/cuttleprint/.*
+
+
 echo "Setup autologin"
-echo """[Service]
-Type=simple
-ExecStart=
-ExecStart=-/sbin/agetty --autologin cuttleprint --noclear %I 38400 linux
-""" > /etc/systemd/system/getty@tty1.service.d/override.conf
+lightdm_conf="/etc/lightdm/lightdm.conf"
+sed -i '/#autologin-guest=false/c\autologin-guest=false' $lightdm_conf
+sed -i '/#autologin-user=/c\autologin-user=cuttleprint' $lightdm_conf
+sed -i '/#autologin-user-timeout=0/c\autologin-user-timeout=0' $lightdm_conf

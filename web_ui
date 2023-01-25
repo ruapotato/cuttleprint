@@ -18,8 +18,19 @@ if not os.path.isfile(config_file_path):
 def getIP():
     import socket
     #Thanks: https://stackoverflow.com/a/1267524/5282272
-    return (([ip for ip in socket.gethostbyname_ex(socket.gethostname())[2] if not ip.startswith("127.")] or [[(s.connect(("8.8.8.8", 53)), s.getsockname()[0], s.close()) for s in [socket.socket(socket.AF_INET, socket.SOCK_DGRAM)]][0][1]]) + ["no IP found"])[0]
-SEVER_IP = getIP()
+    try:
+        return (([ip for ip in socket.gethostbyname_ex(socket.gethostname())[2] if not ip.startswith("127.")] or [[(s.connect(("8.8.8.8", 53)), s.getsockname()[0], s.close()) for s in [socket.socket(socket.AF_INET, socket.SOCK_DGRAM)]][0][1]]) + ["no IP found"])[0]
+    except Exception:
+        return(False)
+
+#Welcome loop until the network is setup
+network_missing = True
+while network_missing:
+    SEVER_IP = getIP()
+    network_missing = SEVER_IP == False
+    if network_missing:
+        print("Welcome to Cuttleprint! Setup the network with the top right icons to start your server. Now is also a good time to connect all your 3d printers.\n\n")
+        time.sleep(5)
 
 
 def get_printer_devs():
@@ -307,6 +318,6 @@ def index():
     return(full_HTML)
 
 
-
+print(f"Starting server! Use a browser to configure your printers at:\n    http://{SEVER_IP}:{port}/post-hast\n\nKeep in mind this is ment to be run on a trusted network and should not be hosted on the internet.")
 app.run(host=SEVER_IP,port=port,debug=False)
 
