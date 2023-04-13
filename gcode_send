@@ -22,7 +22,7 @@ crunch = serial.Serial(args.device, args.baudrate)
 cmd_done = False
 
 #CMDs without an retrun ok
-no_ok = ["M105", "M82", "G90"]
+no_ok = ["M105", "M82", "G90", "M84"]
 time_out_at_some_point = ["G1"]
 last_ok = time.time()
 
