@@ -1,125 +1,286 @@
 #!/usr/bin/python3
-#AGPL by David Hamner
+# AGPL by David Hamner (ruapotato)
 
-
-import subprocess
-import sys
-from threading import Thread
 import serial
 import time
 import os
 import argparse
+from threading import Thread, Event
+import sys # For sys.exit
 
-parser = argparse.ArgumentParser(description="Send G-code to a 3d-printer")
-parser.add_argument("-d","--device",help="Serial device",required=True)
-parser.add_argument("-b", "--baudrate", help="Baudrate of serial device (9600,115200,250000)", required=True)
-parser.add_argument("-f","--file",help="G-code file path",required=True)
+# --- Configuration ---
+# Commands that set a parameter and return "ok" quickly, without waiting for a physical process.
+# M104: Set Hotend Temperature (and continue, does not wait for temp)
+# M140: Set Bed Temperature (and continue, does not wait for temp)
+# M82: Use absolute distances for extrusion
+# G90: Use absolute positioning
+# G91: Use relative positioning
+# These commands usually get an "ok" very fast.
+QUICK_OK_COMMANDS = ["M104", "M140", "M82", "G90", "G91"]
 
-args = parser.parse_args()
+# Commands that involve a physical process and might take a significant time before "ok" is sent.
+# G1: Linear Move (can be long for slow movements)
+# G28: Auto Home (can take a while)
+# G29: Bed Leveling (can take a very long while)
+# M109: Set Hotend Temperature and Wait
+# M190: Set Bed Temperature and Wait
+LONG_PROCESS_COMMANDS = ["G1", "G28", "G29", "M109", "M190"]
 
+# --- Global Variables ---
+printer_serial = None
+command_acknowledged = Event() # Used to signal when an "ok" is received
+# last_ok_time is not strictly needed with the Event, but can be useful for other monitoring
+# last_ok_time = time.time()
 
-crunch = serial.Serial(args.device, args.baudrate)
-cmd_done = False
+# --- Serial Output Processing Thread ---
+def process_printer_output():
+    """
+    Reads lines from the serial port, prints them, and signals
+    when an 'ok' or 'wait' is received from the printer.
+    """
+    global command_acknowledged
+    # global last_ok_time # Uncomment if used
 
-#CMDs without an retrun ok
-no_ok = ["M105", "M82", "G90"]
-time_out_at_some_point = ["G1"]
-last_ok = time.time()
+    print("INFO: Output processing thread started.")
+    if not printer_serial or not printer_serial.is_open:
+        print("ERROR: Printer serial port not open in process_printer_output.")
+        return
 
-def process_output():
-    global cmd_done
-    global crunch
-    global last_ok
-    
     while True:
         try:
-            print(1)
-            output = crunch.readline().decode()
-            print(2)
-        except UnicodeDecodeError:
-            # Try 1 more time, then error
-            output = crunch.readline().decode()
-        output = output.strip("\r\n")
-        if output.strip() == "":
-            continue
-        if output.startswith("ok") or output == "wait":
-            if not cmd_done:
-                print("CMD DONE!")
-                cmd_done = True
+            if printer_serial.in_waiting > 0:
+                output = printer_serial.readline().decode('utf-8', errors='replace').strip()
+                if not output:  # Skip empty lines that can occur
+                    continue
+
+                print(f"PRINTER: {output}")  # Log all printer output
+
+                # Check for standard G-code acknowledgments
+                # Some firmwares might send 'ok' followed by other info, e.g., 'ok P15 B3'
+                # So, checking if 'ok' is *in* the output is often more robust.
+                if "ok" in output.lower() or "wait" in output.lower():
+                    # last_ok_time = time.time() # Uncomment if used
+                    if not command_acknowledged.is_set():
+                        print("DEBUG: 'ok' or 'wait' received, setting event.")
+                        command_acknowledged.set()
+                    else:
+                        # This can happen if printer sends multiple 'ok's or status messages containing 'ok'
+                        print("DEBUG: 'ok' or 'wait' received, but event was already set. (Possibly a status update)")
+                elif "error" in output.lower():
+                    print(f"PRINTER ERROR: {output}")
+                    # Potentially set the event here too to prevent stalling,
+                    # or handle errors more explicitly.
+                    if not command_acknowledged.is_set():
+                        command_acknowledged.set() # Let the main loop decide what to do on error
+                elif output.startswith("echo:busy: processing"):
+                    # This is a common message, indicating the printer is working.
+                    # No action needed here other than logging it (done by print(f"PRINTER: {output}")).
+                    pass
+                # Add handling for other important messages if needed:
+                # e.g., temperature updates M105, SD status M27, etc.
+
             else:
-                last_ok = time.time()
-        print(f"'{output}'")
-        
+                # No data waiting, sleep briefly to avoid busy-looping
+                time.sleep(0.01)
 
-def gcode_cmd(command):
-    global cmd_done
-    global crunch
-    global last_ok
-    
-    command = command.strip(" ")
-    
-    print(command)
-    if ";" in command:
-        command = command.split(";")[0]
-    if not command.endswith("\n"):
-        command = command + "\r\n"
-    
-    crunch.write(command.encode())
-    crunch.flush()
-    
-    sub_cmd = command.strip("\r\n")
-    if " " in sub_cmd:
-        sub_cmd = sub_cmd.split(" ")[0]
-    
-    print(sub_cmd)
-    if sub_cmd in no_ok:
-        print("No okay")
-        cmd_done = True
+        except serial.SerialException as e:
+            print(f"SERIAL ERROR in processing thread: {e}")
+            # Signal the main thread that communication is lost
+            if not command_acknowledged.is_set():
+                command_acknowledged.set() # Allow gcode_cmd to unblock
+            break # Exit thread on serial error
+        except Exception as e:
+            print(f"UNEXPECTED ERROR in processing thread: {e}")
+            if not command_acknowledged.is_set():
+                command_acknowledged.set()
+            break # Exit thread on other critical errors
+    print("INFO: Output processing thread finished.")
+
+# --- G-code Command Sending Function ---
+def send_gcode_command(command_str):
+    """
+    Sends a G-code command to the printer and waits for an acknowledgment ('ok').
+    """
+    global command_acknowledged
+    # global last_ok_time # Uncomment if used
+
+    if not printer_serial or not printer_serial.is_open:
+        print("ERROR: Cannot send command, printer serial port not open.")
+        return False # Indicate failure
+
+    command_to_send = command_str.strip()
+
+    # Skip empty lines and comments
+    if not command_to_send or command_to_send.startswith(';'):
+        if command_to_send: # If it's a comment line, print it
+            print(f"COMMENT: {command_to_send}")
+        return True # Indicate success (nothing to send, but not an error)
+
+    # Remove inline comments (text after ';')
+    if ';' in command_to_send:
+        command_to_send = command_to_send.split(';', 1)[0].strip()
+
+    if not command_to_send: # If the command was *only* a comment
+        return True
+
+    print(f"SENDING: [{command_to_send}]")
+    command_acknowledged.clear()  # Clear the event flag before sending a new command
+
+    try:
+        printer_serial.write(command_to_send.encode('utf-8') + b'\r\n')
+        printer_serial.flush()  # Ensure data is sent out of the buffer
+    except serial.SerialException as e:
+        print(f"SERIAL ERROR writing command '{command_to_send}': {e}")
+        return False # Indicate failure
+    except Exception as e:
+        print(f"ERROR writing command '{command_to_send}': {e}")
+        return False
+
+    # Determine the base command (e.g., G1, M105) for timeout purposes
+    base_command = command_to_send.split(' ')[0].upper()
+
+    # Set timeout duration
+    # M105 is a temperature report, it should respond quickly.
+    if base_command == "M105":
+        timeout_duration = 10 # seconds
+    elif base_command in LONG_PROCESS_COMMANDS:
+        timeout_duration = 300  # 5 minutes for long commands like G28, M109
+        print(f"INFO: Using longer timeout ({timeout_duration}s) for {base_command}")
     else:
-        cmd_done = False
-    while not cmd_done:
-        #print(time.time() - last_ok)
-        if time.time() - last_ok < .01:
-            print("Warning! OK processed already")
-            last_ok = time.time()
-            cmd_done = True
-        if time.time() - last_ok > 90:
-            if sub_cmd in time_out_at_some_point:
-                print(f"Warning! Fake OK injected, TIMEOUT for {command}")
-                last_ok = time.time()
-                cmd_done = True
-        time.sleep(.01)
-        
-    return()
+        timeout_duration = 60  # Default timeout for other commands (e.g. G1 moves)
 
-# creating bg processing Thread
-bg_output_processing = Thread(target = process_output, daemon = True)
-#bg_output_processing.setDaemon(True)                  
-bg_output_processing.start()                
-time.sleep(3)
+    # Wait for the event to be set by the processing thread, or timeout
+    print(f"DEBUG: Waiting for 'ok' for [{command_to_send}] (timeout: {timeout_duration}s)")
+    if command_acknowledged.wait(timeout=timeout_duration):
+        # Event was set (presumably by 'ok' in process_printer_output)
+        print(f"ACKED: [{command_to_send}]")
+        return True # Indicate success
+    else:
+        # Timeout occurred
+        print(f"TIMEOUT: No 'ok' received for command [{command_to_send}] after {timeout_duration} seconds.")
+        # Consider sending M105 to check if printer is still alive or responsive
+        # For now, we'll just return False and let the main loop decide.
+        return False # Indicate failure
 
-#loading
-#gcode_cmd("M109 S200")
-#time.sleep(60000)
-#This printer is really slow
-time.sleep(10)
-print("hi")
-with open(args.file) as fh:
-    for cmd_in_file in fh.readlines():
-        print(f"Processing: {cmd_in_file}")
-        if cmd_in_file.startswith(";"):
-            continue
-        if cmd_in_file.strip() == "":
-            continue
-        if not os.path.isfile(args.file):
-            print("Print file removed! Stopping")
-            gcode_cmd("G91")
-            gcode_cmd("G1 Z5:; Move up")
-            gcode_cmd("M104 S0; tool off")
-            gcode_cmd("M18; steppers off")
-            break
-        gcode_cmd(cmd_in_file)
 
-print("Print done!")
-time.sleep(10)
-crunch.close()
+# --- Main Execution ---
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Send G-code to a 3D printer")
+    parser.add_argument("-d", "--device", help="Serial device (e.g., /dev/ttyUSB0 or COM3)", required=True)
+    parser.add_argument("-b", "--baudrate", help="Baudrate of serial device (e.g., 115200, 250000)", required=True, type=int)
+    parser.add_argument("-f", "--file", help="G-code file path", required=True)
+    args = parser.parse_args()
+
+    try:
+        print(f"INFO: Connecting to printer on {args.device} at {args.baudrate} baud.")
+        # Add a timeout for serial read operations; crucial for the reading thread
+        printer_serial = serial.Serial(args.device, args.baudrate, timeout=1)
+        print("INFO: Serial port opened. Waiting for printer to initialize (typically a few seconds)...")
+        # Give the printer a moment to send any startup messages.
+        # Marlin often sends "start" or boot messages.
+        time.sleep(3) # Increased from 2 to allow more time for initial messages.
+    except serial.SerialException as e:
+        print(f"CRITICAL: Could not open serial port {args.device}: {e}")
+        sys.exit(1)
+    except Exception as e:
+        print(f"CRITICAL: An unexpected error occurred on startup: {e}")
+        sys.exit(1)
+
+
+    # Start the serial output processing thread
+    # It's a daemon thread, so it will exit when the main program exits.
+    output_thread = Thread(target=process_printer_output, daemon=True)
+    output_thread.start()
+
+    # Give the thread a moment to start and printer to settle
+    # time.sleep(3) # This was in your original, covered by sleep after serial connect.
+
+    if not os.path.isfile(args.file):
+        print(f"ERROR: G-code file not found: {args.file}")
+        if printer_serial and printer_serial.is_open:
+            printer_serial.close()
+        sys.exit(1)
+
+    print(f"INFO: Starting G-code print from file: {args.file}")
+    all_commands_successful = True
+    try:
+        with open(args.file, 'r', encoding='utf-8') as fh:
+            for line_number, line_content in enumerate(fh, 1):
+                if not output_thread.is_alive():
+                    print("CRITICAL: Printer output processing thread has died. Halting print.")
+                    all_commands_successful = False
+                    # Attempt to safely shut down printer (some commands might fail if thread died due to serial issue)
+                    send_gcode_command("M112") # Emergency Stop
+                    send_gcode_command("M104 S0")
+                    send_gcode_command("M140 S0")
+                    send_gcode_command("M84")
+                    break
+
+                # Optional: Check if the print file was removed during printing
+                if not os.path.exists(args.file): # Use os.path.exists
+                    print("EMERGENCY STOP: Print file removed during operation! Halting print.")
+                    all_commands_successful = False
+                    send_gcode_command("M112") # Emergency Stop - immediate stop, steppers may stay engaged
+                    time.sleep(0.5) # Give M112 a moment
+                    send_gcode_command("M104 S0")  # Turn off hotend
+                    send_gcode_command("M140 S0")  # Turn off bed
+                    send_gcode_command("M84")     # Disable steppers (or M18)
+                    break
+
+                print(f"LINE {line_number}: {line_content.strip()}")
+                if not send_gcode_command(line_content):
+                    print(f"ERROR: Failed to get acknowledgment for command on line {line_number}: {line_content.strip()}")
+                    print("INFO: Attempting to continue, but the print may be compromised.")
+                    # You might want to implement a stricter error policy here,
+                    # e.g., abort after N consecutive failures.
+                    all_commands_successful = False
+                    # Consider sending an M112 (Emergency Stop) or pausing.
+                    # For now, we'll try to continue.
+                    # If a timeout occurred, the printer might be stuck or disconnected.
+                    # Sending an M105 here can be a good "are you alive?" check.
+                    print("INFO: Sending M105 (get temperature) to check printer responsiveness...")
+                    if not send_gcode_command("M105"):
+                        print("CRITICAL: Printer unresponsive after command failure. Halting print.")
+                        send_gcode_command("M112")
+                        break # Abort the print job
+
+        if all_commands_successful and output_thread.is_alive():
+            print("INFO: G-code file processed successfully.")
+            # Optional: Send some final G-code commands (e.g., present print, cool down)
+            # send_gcode_command("G91") # Relative positioning
+            # send_gcode_command("G0 Z10 F3000") # Move Z up 10mm
+            # send_gcode_command("G90") # Absolute positioning
+            # send_gcode_command("G0 X0 Y200 F3000") # Move bed forward to present print (adjust Y as needed)
+            # send_gcode_command("M104 S0") # Turn off hotend
+            # send_gcode_command("M140 S0") # Turn off bed
+            # send_gcode_command("M84")   # Disable motors
+        elif not all_commands_successful:
+            print("WARNING: Print file processed with errors or was halted.")
+
+    except FileNotFoundError:
+        print(f"CRITICAL ERROR: G-code file disappeared during read operation: {args.file}")
+    except Exception as e:
+        print(f"CRITICAL ERROR during printing: {e}")
+        if printer_serial and printer_serial.is_open and output_thread.is_alive():
+            print("INFO: Attempting emergency stop due to critical error.")
+            send_gcode_command("M112")
+            send_gcode_command("M104 S0")
+            send_gcode_command("M140 S0")
+            send_gcode_command("M84")
+    finally:
+        print("INFO: Cleaning up...")
+        # Short delay to allow any final commands to be processed if the script is ending abruptly.
+        time.sleep(1)
+        if printer_serial and printer_serial.is_open:
+            print("INFO: Closing serial connection.")
+            printer_serial.close()
+        else:
+            print("INFO: Serial connection was already closed or not opened.")
+
+        # The output_thread is a daemon, so it will be terminated automatically
+        # when the main thread exits. Explicitly joining is good practice if it
+        # were managing resources that need clean shutdown, but for a daemon reader,
+        # it's less critical if the serial port is already closed.
+        if output_thread.is_alive():
+            print("INFO: Output processing thread is still alive (expected for daemon).")
+        print("INFO: Script finished.")
