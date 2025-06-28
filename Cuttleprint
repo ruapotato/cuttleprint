@@ -84,7 +84,7 @@ def setup_path(printer_dev_file):
     return(upload_folder)
 
 def on_upload(event):
-    might_be_code = event._src_path
+    might_be_code = event.src_path
     if not os.path.isfile(might_be_code):
         return
     if not might_be_code.endswith(".gcode"):
