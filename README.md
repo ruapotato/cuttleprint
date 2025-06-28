@@ -11,7 +11,10 @@ Flatpak
 
 Setup
 ---
- - Run: `apt get install python3-watchdog python3-flask`
+ - Run: Debian: `apt get install python3-watchdog python3-flask`
+ - Run: SuSE: `sudo zypper install python3-watchdog python3-Flask python3-serial`
+ - sudo usermod -a -G dialout USERNAME
+ - Reboot or run `su USERNAME -`
  - Run: ./startup
  - Open: http://localhost/post-hast to config printers
 
